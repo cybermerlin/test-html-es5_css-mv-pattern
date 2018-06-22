@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>test</title>
+
+	<style>
+		* {
+			margin: 0;
+		}
+
+		button {
+			border: 1px solid
+		}
+
+		body {
+			padding: 15px;
+			background-color: darkgrey;
+			height: 100%;
+			display: block;
+		}
+
+		#status {
+			background-color: white;
+			height: 42px;
+			border: 1px solid grey;
+			padding: 5px;
+		}
+
+		#status span {
+			margin: 5px 15px;
+		}
+
+		#toolbar {
+			background-color: white;
+			border: 1px solid grey;
+			height: 42px;
+		}
+
+		#toolbar button {
+			margin: 10px 10px auto;
+		}
+
+		article {
+			background-color: white;
+			margin: 15px auto auto;
+			padding: 5px;
+			display: block;
+			overflow-y: auto;
+			border: 1px solid #eee;
+			height: 200px;
+			max-width: 400px;
+		}
+
+		.float-r {
+			float: right;
+		}
+
+		.scroll-y {
+			overflow-y: auto;
+		}
+
+		section {
+			background-color: white;
+			position: relative;
+			border: 1px solid lightgrey;
+			height: 80px;
+			padding: 3px;
+			margin-top: 3px;
+			margin-bottom: 3px;
+		}
+
+		section .content {
+			padding: 5px;
+			height: 60px;
+			/*float: left;*/
+			/*width: 100%;*/
+			/*border: 1px solid red;*/
+			border-top-right-radius: 45px;
+		}
+
+		section:hover {
+			background-color: #eee;
+		}
+
+		section button.cross {
+			position: absolute;
+			top: 0;
+			right: 0;
+			display: block;
+			margin: 3px;
+			height: 28px;
+			border-radius: 6px;
+			border: 1px solid #aaa;
+		}
+	</style>
+</head>
+<body>
+
+<div id="toolbar">
+	<button id="add">add</button>
+</div>
+
+<div id="status">
+	count: <span id="count">0</span>
+	selected: <span id="selected">0</span>
+	colored: <span id="colored">0/0</span>
+	<br/><span style="color: red;">//TODO: move this panel to bottom page</span>
+</div>
+
+
+<script src="index.js"></script>
+</body>
+</html>

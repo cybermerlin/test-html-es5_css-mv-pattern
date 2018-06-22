@@ -16,15 +16,15 @@
    * this framework developed as MVC+MVVW.
    * What is it? That's means u may use :
    * - Controller - business logic
-   * - View - just only view (I mean something like HTML)
-   * - ViewModel - that's event mapper. It link html elements with methods (such use methods from Controller) from this
-   * class (user actions)
-   * - Store - storage for data of list
-   * - DataModel - data(row) structure
+   * - View       - just only view (I mean something like HTML)
+   * - ViewModel  - that's event mapper. It link html elements with methods (which use methods from the Controller) from
+   *                  this class (user actions)
+   * - Store      - storage for data of list
+   * - DataModel  - data(row) structure
    *
    * new Test() --> new Controller() --> new View() --> new ViewModel
    *                                |--> new ViewModel()   // this case using if a View is exists (mb simple HTML, or
-   *                                                            it created some framework like
+   *                                                            some framework created it like
    *                                                            angular[directive|component]
    *                                |--> new Store()
    *                                |--> new DataModel()  // for single data row, like current User

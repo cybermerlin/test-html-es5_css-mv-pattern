@@ -9,6 +9,27 @@
         return a[i];
       });
     };
+  if ( !Array.prototype.indexOfKey )
+    Array.prototype.indexOfKey = function(key, val, from) {
+      var len = this.length;
+      from = Number(arguments[2]) || 0;
+      from = (from < 0)
+          ? Math.ceil(from)
+          : Math.floor(from);
+      if ( from < 0 ) from += len;
+
+      for (; from < len; from++) {
+        try {
+          if ( key in this[from] ) {
+            if ( this[from][key] === val ) return from;
+            if ( typeof (this[from][key]) === 'number' || typeof (val) === 'number' )
+              if ( parseInt(val) === parseInt(this[from][key]) )
+                return from;
+          }
+        } catch (e) {}
+      }
+      return -1;
+    };
 //endregion
 
 
@@ -70,16 +91,87 @@
 
 
 //region base classes
+  /**
+   * @class Test.utils.EventManager
+   * @singleton
+   */
+  Test.utils.EventManager = {
+    list: [],
+    find: function(event, handler, target) {
+      var result = [];
+
+      for (var i = 0; i < this.list.length; i++) {
+        var match = event && this.list[i].event === event;
+        match &= handler && this.list[i].handler.id === handler.id;
+        match &= target && this.list[i].target.getAttribute('uid') === target.getAttribute('uid');
+
+        if ( match ) {
+          result.push(this.list[i]);
+        }
+      }
+
+      return result;
+    },
+
+    /**
+     *
+     * @param {HTMLElementEventMap} event
+     * @param {Function} handler
+     * @param {HTMLElement} target
+     */
+    on: function(event, handler, target) {
+      var id = Test.utils.uuid(6);
+
+      this.list.push({
+        id: id,
+        target: target.getAttribute('uid'),
+        event: event,
+        handler: handler
+      });
+
+      document.body.addEventListener(event, function(e) {
+        if ( e.target === target )
+          handler.apply(target, arguments);
+        else {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+    },
+
+    off: function(event, handler, target) {
+      var list = this.find(event, handler, target);
+
+      for (var i = 0; i < list.length; i++) {
+        var itl = this.list.indexOfKey('id', list[i].id);
+        this.list.splice(itl, 1);
+      }
+    }
+  };
+
   Test.view.View = function(cfg) {
     cfg = cfg || {};
 
     this.tpl = cfg.tpl || this.tpl;
 
     if ( cfg.el ) this.el = cfg.el;
+    if ( this.el ) {
+      this.el.setAttribute('uid', Test.utils.uuid(6));
+      this.el.cls = this;
+    }
 
     cfg.container && cfg.container.appendChild(this.el);
 
-    this.ViewModel && (this.viewModel = new this.ViewModel({view: this}));
+    this.ViewModel && !this.viewModel && (
+        this.viewModel = new this.ViewModel(
+            Test.utils.applyIf(
+                cfg.ViewModel,
+                {
+                  ctrl: cfg.ctrl || null,
+                  view: this
+                })
+        )
+    );
   };
   Test.view.View.prototype.el = null;
   Test.view.View.prototype.tpl = '';
@@ -92,12 +184,16 @@
     cfg.view && (this.view = cfg.view);
     cfg.ctrl && (this.ctrl = cfg.ctrl);
 
+    var self = this;
+
     function link(query, event, handler, el) {
-      if ( query === 'this' )
-        el && el.addEventListener(event, handler);
-      else {
-        (el || document).querySelector(query).addEventListener(event, handler);
-      }
+      Test.utils.EventManager.on(
+          event,
+          handler.bind(self),
+          query === 'this'
+              ? el
+              : (el || document).querySelector(query)
+      );
     }
 
     for (var io in this.handlersMap)
@@ -105,17 +201,30 @@
         var event = 'click';
         if ( typeof this.handlersMap[io] === 'object' ) {
           for (var ioe in this.handlersMap[io])
-            if ( this.handlersMap[io].hasOwnProperty(ioe) ) {
+            if ( this.handlersMap[io].hasOwnProperty(ioe)
+                && this[this.handlersMap[io][ioe]] ) {
               event = ioe || event;
-              link(io, event, this[this.handlersMap[io]], this.view.el);
+              link(io, event, this[this.handlersMap[io][ioe]], this.view.el);
             }
         }
-        else
+        else if ( this[this.handlersMap[io]] )
           link(io, event, this[this.handlersMap[io]], this.view.el);
       }
   };
-  Test.view.Model.prototype.destroy = function(){};
-  Test.view.Model.prototype.destructor = function(){};
+  Test.view.Model.prototype.destroy = function() {
+    this.destructor();
+  };
+  Test.view.Model.prototype.destructor = function() {
+    var event = 'click';
+    for (var io in this.handlersMap) {
+      //TODO: recursive if multievent|multiaction on one element
+      if ( !this.handlersMap.hasOwnProperty(io) ) continue;
+      Test.utils.EventManager.off(
+          event,
+          this[this.handlersMap[io]],
+          document.querySelector(io));
+    }
+  };
   Test.view.Model.prototype.handlersMap = null;
   Test.view.Model.prototype.view = null;
   Test.view.Model.prototype.ctrl = null;
@@ -133,6 +242,20 @@
     }
   };
 
+  Test.utils.applyIf = function(to, from, clone) {
+    clone = clone || false;
+    to = to || {};
+    from = from || {};
+
+    var result = to; //TODO: clone ? (clone||Object.assign)(to) : to;
+
+    for (var io in from) {
+      if ( !from.hasOwnProperty(io) || result[io] ) continue;
+      result[io] = from[io];
+    }
+
+    return result;
+  };
   Test.utils.extend = function(a, b) {
     for (var io in b.prototype) {
       if ( !b.prototype.hasOwnProperty(io) ) continue;
@@ -140,12 +263,51 @@
         for (var ioo in b.prototype[io])
           if ( b.prototype[io].hasOwnProperty(ioo) && !a.prototype[io][ioo] )
             a.prototype[io][ioo] = b.prototype[io][ioo];
-      a.prototype[io] = b.prototype[io];
+      if ( !a.prototype[io] && (b.prototype[io] !== null) ) a.prototype[io] = b.prototype[io];
     }
     a.prototype.super = b;
   };
   Test.utils.generateText = function() {
     return 'random: ' + Math.random().toFixed(4);
+  };
+  Test.utils.uuid = function(len, radix) {
+    len = (len || 36);
+    radix = radix || 10;
+
+    try {
+      return (new ActiveXObject("Scriptlet.TypeLib").GUID.substr(1, len));
+
+    } catch (e) {
+      // Private array of chars to use
+      var CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
+
+      var chars = CHARS, uuid = [], rnd = Math.random;
+      radix = radix || chars.length;
+
+      if ( len != 36 ) {
+        // Compact form
+        for (var i = 0; i < len; i++)
+          uuid[i] = chars[0 | rnd() * radix];
+      } else {
+        // rfc4122, version 4 form
+        var r;
+
+        // rfc4122 requires these characters
+        uuid[8] = uuid[13] = uuid[18] = uuid[23] = '-';
+        uuid[14] = '4';
+
+        // Fill in random data.  At i==19 set the high bits of clock sequence as
+        // per rfc4122, sec. 4.1.5
+        for (var i = 0; i < 36; i++) {
+          if ( !uuid[i] ) {
+            r = 0 | rnd() * 16;
+            uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r & 0xf];
+          }
+        }
+      }
+
+      return uuid.join('');
+    }
   };
 //endregion
 
@@ -156,7 +318,7 @@
     '#add': 'addBlock'
   };
   Test.toolbar.ViewModel.prototype.addBlock = function() {
-    this.ctrl.addBlock();
+    this.ctrl.listBlock.addBlock();
     console.log('toolbar > addBlock');
   };
   Test.utils.extend(Test.toolbar.ViewModel, Test.view.Model);
@@ -173,23 +335,18 @@
   Test.listBlock.View = function(cfg) {
     cfg = cfg || {};
 
-    this.tpl = cfg.tpl || this.tpl;
-
-    if ( cfg.el )
-      this.el = cfg.el;
-    else {
+    if ( !cfg.el ) {
       var block = document.createElement('ARTICLE');
       block.innerHTML = this.tpl;
-      this.el = block;
+      cfg.el = block;
     }
 
-    cfg.container && cfg.container.appendChild(this.el);
-
-    this.ViewModel && (this.viewModel = new this.ViewModel({view: this}));
+    this.super.call(this, cfg);
   };
   Test.listBlock.View.prototype.tpl = '';
   Test.listBlock.View.prototype.viewModel = null;
   Test.listBlock.View.prototype.ViewModel = null;
+  Test.utils.extend(Test.listBlock.View, Test.view.View);
 
   Test.listBlock.Controller = function(cfg) {
     cfg = cfg || {};
@@ -224,6 +381,9 @@
   Test.block.ViewModel.prototype.handlersMap = {
     'this': 'select'
   };
+  Test.block.ViewModel.prototype.select = function(e) {
+    e.target.style.color = 'creame';
+  };
   Test.block.ViewModel.prototype.setText = function(v) {
     if ( v instanceof Test.data.Model )
       this.view.setText(v.text);
@@ -240,23 +400,20 @@
    */
   Test.block.View = function(cfg) {
     cfg = cfg || {};
-    this.tpl = cfg.tpl || this.tpl;
 
-    if ( cfg.el )
-      this.el = cfg.el;
-    else {
+    if ( !cfg.el ) {
       var block = document.createElement('SECTION');
       block.innerHTML = this.tpl;
-      this.el = block;
+      cfg.el = block;
     }
 
-    cfg.container && cfg.container.appendChild(this.el);
-
-    this.ViewModel && (this.viewModel = new this.ViewModel({
+    cfg.ViewModel = {
       view: this,
       ctrl: cfg.ctrl || null,
       text: cfg.text
-    }));
+    };
+
+    this.super.call(this, cfg);
   };
   /**
    * @property {HTMLElement} el
@@ -269,6 +426,7 @@
     this.el.style.width;
     return this;
   };
+  Test.utils.extend(Test.block.View, Test.view.View);
 
   Test.block.extended.ViewModel = function(cfg) {this.super.call(this, cfg);};
   Test.block.extended.ViewModel.prototype.changeColor = function() {};

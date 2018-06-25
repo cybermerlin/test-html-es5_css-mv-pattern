@@ -201,6 +201,12 @@
   Test.view.View.prototype.tpl = '';
   Test.view.View.prototype.viewModel = null;
   Test.view.View.prototype.ViewModel = null;
+  Test.view.View.prototype.destroy = function() {
+    this.destructor();
+  };
+  Test.view.View.prototype.destructor = function() {
+    this.viewModel && this.viewModel.destroy();
+  };
 
   Test.view.Model = function(cfg) {
     cfg = cfg || {};
@@ -390,6 +396,17 @@
     this.list.push(bv);
     this.view.el.appendChild(bv.el);
   };
+  Test.listBlock.Controller.prototype.delBlock = function(bv) {
+    if ( (bv instanceof Test.block.View) ) {
+      var uid = bv.el.getAttribute('uid');
+      for (var i = 0; i < this.list.length; i++) {
+        if ( this.list[i].el.getAttribute('uid') == uid )
+          this.list.splice(i, 1);
+      }
+    }
+    this.view.el.removeChild(bv.el);
+    bv.destroy();
+  };
 
   Test.block.data.Model = function() {};
   Test.utils.extend(Test.block.data.Model, Test.data.Model);
@@ -404,9 +421,13 @@
     cfg.text && this.setText(cfg.text);
   };
   Test.block.ViewModel.prototype.handlersMap = {
-    'this': 'select'
+    'this': 'toggleSelect',
+    '.cross': 'del'
   };
-  Test.block.ViewModel.prototype.select = function(e) {
+  Test.block.ViewModel.prototype.del = function(e) {
+    this.ctrl.delBlock(this.view);
+  };
+  Test.block.ViewModel.prototype.toggleSelect = function(e) {
     this.view.el.style.backgroundColor = this.view.el.style.backgroundColor == 'mintcream' ? 'white' : 'mintcream';
   };
   Test.block.ViewModel.prototype.setText = function(v) {

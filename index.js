@@ -63,11 +63,20 @@
    */
   var Test = function() {
     function Application() {
+      var self = this;
       this.toolbar = new Test.toolbar.View({
         el: document.getElementById('toolbar'),
         ctrl: this
       });
-      this.listBlock = new Test.listBlock.Controller();
+      this.statusbar = new Test.status.Controller({el: document.getElementById('status')});
+      this.listBlock = new Test.listBlock.Controller({el: document.querySelector('article')});
+      this.listBlock.on('change', function(bv) {
+        self.statusbar.setColored(this.colored);
+        self.statusbar.setSelected(this.selected);
+      });
+      this.listBlock.on('add', function(bv) {
+        self.statusbar.setCount(this.list.length);
+      });
       this.title = 'Another test';
     }
 
@@ -77,6 +86,7 @@
 
 //region namespaces
   Test.toolbar = {};
+  Test.status = {};
   Test.view = {};
   Test.data = {};
   Test.block = {
@@ -256,6 +266,7 @@
           document.querySelector(io));
     }
   };
+  Test.view.Model.prototype.fireEvent = function() {}; //TODO: move to Test.utils.Observer
   Test.view.Model.prototype.handlersMap = null;
   Test.view.Model.prototype.view = null;
   Test.view.Model.prototype.ctrl = null;
@@ -344,6 +355,25 @@
 
 
 //region Product
+  Test.status.Controller = function(cfg) {
+    cfg = cfg || {};
+    this.view = {
+      el: cfg.el,
+      count: cfg.el.querySelector('#count'),
+      selected: cfg.el.querySelector('#selected'),
+      colored: cfg.el.querySelector('#colored')
+    };
+  };
+  Test.status.Controller.prototype.setCount = function(v) {
+    this.view.count.innerText = v;
+  };
+  Test.status.Controller.prototype.setSelected = function(v) {
+    this.view.selected.innerText = v;
+  };
+  Test.status.Controller.prototype.setColored = function(v) {
+    this.view.colored.innerText = v[0] + '/' + v[1];
+  };
+
   Test.toolbar.ViewModel = function(cfg) {this.super.call(this, cfg);};
   Test.toolbar.ViewModel.prototype.handlersMap = {
     '#add': 'addBlock'
@@ -383,11 +413,15 @@
     cfg = cfg || {};
     this.list = [];
 
-    this.view = new this.View({container: document.body, ctrl: this});
+    this.view = new this.View({el: cfg.el, ctrl: this});
   };
   Test.listBlock.Controller.prototype.View = Test.listBlock.View;
   Test.listBlock.Controller.prototype.view = null;
+  Test.listBlock.Controller.prototype.fireEvent = function() {};  //TODO: move to Observer
+  Test.listBlock.Controller.prototype.on = function() {};  //TODO: move to Observer
   Test.listBlock.Controller.prototype.list = null;
+  Test.listBlock.Controller.prototype.colored = 0;
+  Test.listBlock.Controller.prototype.selected = 0;
   Test.listBlock.Controller.prototype.addBlock = function(bv) {
     bv = bv || Test.utils.generateText();
     if ( !(bv instanceof Test.block.View) ) {
@@ -395,6 +429,7 @@
     }
     this.list.push(bv);
     this.view.el.appendChild(bv.el);
+    this.fireEvent('add', bv);
   };
   Test.listBlock.Controller.prototype.delBlock = function(bv) {
     if ( (bv instanceof Test.block.View) ) {
@@ -421,14 +456,18 @@
     cfg.text && this.setText(cfg.text);
   };
   Test.block.ViewModel.prototype.handlersMap = {
-    'this': 'toggleSelect',
-    '.cross': 'del'
+    '.cross': 'del',
+    'this': {
+      'click': 'toggleSelect',
+      'dblckick': 'changeColor'
+    }
   };
   Test.block.ViewModel.prototype.del = function(e) {
     this.ctrl.delBlock(this.view);
   };
   Test.block.ViewModel.prototype.toggleSelect = function(e) {
     this.view.el.style.backgroundColor = this.view.el.style.backgroundColor == 'mintcream' ? 'white' : 'mintcream';
+    this.fireEvent('change');
   };
   Test.block.ViewModel.prototype.setText = function(v) {
     if ( v instanceof Test.data.Model )
